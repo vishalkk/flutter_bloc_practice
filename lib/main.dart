@@ -1,9 +1,11 @@
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:bloc/bloc.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_bloc_practice/bloc/bloc_actions.dart';
+import 'package:flutter_bloc_practice/bloc/person.dart';
+import 'package:flutter_bloc_practice/bloc/persons_bloc.dart';
 
 void main() {
   runApp(MaterialApp(
@@ -13,49 +15,22 @@ void main() {
   ));
 }
 
-//Event class for bloc
-@immutable
-abstract class LoadAction {
-  const LoadAction();
-}
+// //defining url
+// enum PersonUrl {
+//   persons2,
+//   persons1,
+// }
 
-//first event
-@immutable
-class LoadPersonsAction implements LoadAction {
-  final PersonUrl url;
-  const LoadPersonsAction({required this.url}) : super();
-}
-
-//defining url
-enum PersonUrl {
-  persons2,
-  persons1,
-}
-
-extension UrlString on PersonUrl {
-  String get urlString {
-    switch (this) {
-      case PersonUrl.persons1:
-        return 'http://192.168.240.191:5500/api/persons1.json';
-      case PersonUrl.persons2:
-        return 'http://192.168.240.191:5500/api/persons2.json';
-    }
-  }
-}
-
-//model class person
-
-@immutable
-class Person {
-  final String name;
-  final int age;
-
-  const Person({required this.name, required this.age});
-
-  Person.fromJson(Map<String, dynamic> json)
-      : name = json['name'] as String,
-        age = json['age'] as int;
-}
+// extension UrlString on PersonUrl {
+//   String get urlString {
+//     switch (this) {
+//       case PersonUrl.persons1:
+//         return 'http://192.168.240.191:5500/api/persons1.json';
+//       case PersonUrl.persons2:
+//         return 'http://192.168.240.191:5500/api/persons2.json';
+//     }
+//   }
+// }
 
 //equivalent to Http Get Request
 Future<Iterable<Person>> getPerson(String url) => HttpClient()
@@ -68,50 +43,7 @@ Future<Iterable<Person>> getPerson(String url) => HttpClient()
     .then(
         (list) => list.map((e) => Person.fromJson(e))); // map element to person
 
-// state for  bloc
-@immutable
-class FetchResult {
-  final Iterable<Person> persons;
-  final bool isRetrivedFromCache;
-  const FetchResult({
-    required this.persons,
-    required this.isRetrivedFromCache,
-  });
-
-  @override
-  String toString() =>
-      'FetchResult (isRetrivedFromCache = $isRetrivedFromCache, persons = $persons)';
-}
-
 //Person Bloc
-
-class PersonBloc extends Bloc<LoadAction, FetchResult?> {
-  final Map<PersonUrl, Iterable<Person>> _cache =
-      {}; //for cachng the url response
-  //handle the LoadPersonsAction in the constructor
-  PersonBloc() : super(null) {
-    on<LoadPersonsAction>(((event, emit) async {
-      final url = event.url;
-      if (_cache.containsKey(url)) {
-        //we have the value in the cache
-        final cachedPersons = _cache[url]!;
-        final result = FetchResult(
-          persons: cachedPersons,
-          isRetrivedFromCache: true,
-        );
-        emit(result);
-      } else {
-        final persons = await getPerson(url.urlString);
-        _cache[url] = persons;
-
-        final result =
-            FetchResult(persons: persons, isRetrivedFromCache: false);
-
-        emit(result);
-      }
-    }));
-  }
-}
 
 //give null for out of bound index
 extension Subscript<T> on Iterable<T> {
@@ -136,8 +68,7 @@ class MyHomePage extends StatelessWidget {
                     //access the content of  bloc using context.read
                     context.read<PersonBloc>().add(
                           const LoadPersonsAction(
-                            url: PersonUrl.persons1,
-                          ),
+                              url: persons1Url, loader: getPerson),
                         );
                   },
                   child: const Text("Load json #2")),
@@ -145,8 +76,7 @@ class MyHomePage extends StatelessWidget {
                   onPressed: () {
                     context.read<PersonBloc>().add(
                           const LoadPersonsAction(
-                            url: PersonUrl.persons2,
-                          ),
+                              url: persons2Url, loader: getPerson),
                         );
                   },
                   child: const Text("Load json #1")),
@@ -158,7 +88,7 @@ class MyHomePage extends StatelessWidget {
           }, builder: ((context, state) {
             final persons = state?.persons;
             if (persons == null) {
-              return SizedBox();
+              return const SizedBox();
             }
             return Expanded(
                 child: ListView.builder(
